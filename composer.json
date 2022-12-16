@@ -1,0 +1,21 @@
+{
+    "name": "mrfrost/jwt",
+    "description": "PHP JWT Implementation for Codeigniter 4",
+    "type": "library",
+    "require": {
+        "web-token/jwt-framework": "^3.1"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Mrfrost\\JWT\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "MrFrost-Nv27",
+            "email": "nazruelyourgoodfriend@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable"
+}
