@@ -4,58 +4,45 @@ declare(strict_types=1);
 
 namespace Mrfrost\JWT;
 
-use Jose\Component\Core\JWK;
+use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWT;
-use Jose\Component\Encryption\JWE;
-use Jose\Component\Signature\JWS;
+use Mrfrost\JWT\Enums\AlgorithmType;
+use Mrfrost\JWT\Exceptions\JWTServiceException;
 
 interface JWTInterface
 {
     /**
-     * Get Payload By User.
+     * Create the token
+     * Store the token and payload if success
      *
-     * @throws JWTException
+     * @throws JWTServiceException
      */
-    public function getPayload(): ?array;
+    public function create(string $payload): string;
 
     /**
-     * Attempts to authenticate a user with the given $credentials.
-     * Logs the user in with a successful check.
+     * Load the token
+     * initiate the payload if success
      *
-     * @throws JWTException
-     * 
-     * @return JWS|JWE
+     * @throws JWTServiceException
      */
-    public function generateToken();
+    public function load(string $token): JWT;
 
     /**
-     * Validate token with signatures
+     * Checks if the JWT Service has produced the jwt.
+     * JWT can be produce from creation or loader
      */
-    public function validateToken(string $newToken): bool;
+    public function produced(): bool;
 
     /**
-     * Get the key
+     * serialize the jwt
      */
-    public function getKey(): ?JWK;
+    public function serialize(?JWT $jwt): string;
 
     /**
-     * Set and Get user for payload
+     * Returns the currently jwt product.
      */
-    public function setUser(object $newUser): self;
-    public function getUser(): ?object;
+    public function getJWT();
 
-    /**
-     * Set and Get jWT
-     * 
-     * @return JWS|JWE
-     */
-    public function setJwT(JWT $newJWT): self;
-    public function getJwT();
-
-    /**
-     * Set and Get token
-     */
-    public function setToken(string $newJWT): self;
-    public function getToken();
-    public function serializeJWT(): self;
+    public function setAlgorithm(): self;
+    public function getAlgorithm(): AlgorithmManager;
 }

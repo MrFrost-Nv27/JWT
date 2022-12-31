@@ -4,226 +4,133 @@ declare(strict_types=1);
 
 namespace Mrfrost\JWT\Encryption;
 
-use Mrfrost\JWT\Exceptions\InvalidArgumentException;
-use Mrfrost\JWT\Exceptions\LogicException;
-use Mrfrost\JWT\Exceptions\RuntimeException;
-use Mrfrost\JWT\JWTInterface;
-use Mrfrost\JWT\Traits\JWETraits;
+use Jose\Component\Checker\HeaderCheckerManagerFactory;
+use Jose\Component\Core\AlgorithmManager;
+use Jose\Component\Core\AlgorithmManagerFactory;
 use Jose\Component\Core\JWK;
+use Jose\Component\Core\JWT;
+use Jose\Component\Encryption\Compression\CompressionMethodManager;
+use Jose\Component\Encryption\Compression\CompressionMethodManagerFactory;
 use Jose\Component\Encryption\JWE as EncryptionJWE;
 use Jose\Component\Encryption\JWEBuilder;
+use Jose\Component\Encryption\JWEDecrypter;
 use Jose\Component\Encryption\JWELoader;
 use Jose\Component\Encryption\Serializer\CompactSerializer;
-use Mrfrost\JWT\Config\JWT as Config;
-use Mrfrost\JWT\JWTException;
+use Jose\Component\Encryption\Serializer\JWESerializerManager;
+use Mrfrost\JWT\Config\JWTConfig;
+use Mrfrost\JWT\Enums\AlgorithmType;
+use Mrfrost\JWT\Enums\CEA;
+use Mrfrost\JWT\Enums\Compressor;
+use Mrfrost\JWT\Enums\JWTType;
+use Mrfrost\JWT\Enums\KEA;
+use Mrfrost\JWT\Exceptions\JWTServiceException;
+use Mrfrost\JWT\JWTInterface;
 
-class JWE
+class JWE implements JWTInterface
 {
-    use JWETraits;
+    protected JWTConfig $config;
 
-    protected ?array $payload;
-    protected Config $config;
-    protected ?JWK $encryptionKey;
-    protected ?EncryptionJWE $jwt;
-    protected ?string $token;
-    /** @var object $user  */
-    protected $user;
+    protected AlgorithmManager $KEAlgorithm;
+    protected AlgorithmManager $CEAlgorithm;
 
+    protected CompressionMethodManager $compressionMethod;
 
-    public function __construct(array $options = [])
-    {
-        $this->config = config('JWT');
-        $this->setKey($options['key'] ?? null);
-        $this->setJWT($options['jwt'] ?? null);
-        $this->setUser($options['user'] ?? null);
-        $this->setPayload($options['payload'] ?? null);
-        $this->setToken($options['token'] ?? null);
-    }
+    protected Compressor $compressor;
+    protected KEA $KEA;
+    protected CEA $CEA;
+    protected JWEBuilder $builder;
+    protected JWESerializerManager $serializer;
+    protected JWEDecrypter $decrypter;
+    protected JWELoader $loader;
+    protected JWK $recipient;
 
-    /**
-     * Get Payload.
-     */
-    public function getPayload(): ?array
-    {
-        $payload = $this->payload ?? null;
-        if ($payload) {
-            $payload = $this->setPayloadTime($payload);
-        }
-        return $payload;
-    }
+    public EncryptionJWE $jwt;
 
-    public function setPayload(array $payload = null): self
-    {
-        $input = $payload ?? $this->getPayload() ?? [];
+    protected JWTType $jwtType = JWTType::JWE;
 
-        $payload = [
-            'iss' => $this->config->issuer,
-            'aud' => 'Client',
-        ];
+    public function __construct(
+        protected AlgorithmManagerFactory $algos,
+        protected HeaderCheckerManagerFactory $headerCheckers,
+        protected CompressionMethodManagerFactory $compressors,
+    ) {
+        /** @var JWTConfig $config */
+        $config = config('JWTConfig');
 
-        $this->payload = $this->setPayloadTime(array_merge($payload, $input));
+        $this->config = $config;
+        $this->serializer = new JWESerializerManager([new CompactSerializer()]);
 
-        return $this;
-    }
-
-    public function setPayloadTime(array $payload = null): array
-    {
-        return array_merge($payload, [
-            'iat' => time(),
-            'nbf' => time(),
-            'exp' => time() + $this->config->unusedTokenLifetime,
-        ]);
-    }
-
-    /**
-     * Generate the token
-     */
-    public function generateToken(): self
-    {
-        $payload = $this->getPayload();
-        $user = $this->getUser();
-        if ($payload === null) {
-            throw new LogicException('Payload not found.');
-        }
-        if ($user === null) {
-            throw new InvalidArgumentException('Payload Generator need the User Object.');
-        }
-        if (!$user->id) {
-            throw new LogicException('id attribute is needed on user object.');
-        }
-        $payload = $this->payload = array_merge($payload, ['sub' => $user->id]);
-
-        /**
-         * We instantiate our JWE Builder.
-         */
-        $jweBuilder = new JWEBuilder(
-            $this->getKeyEncryptionAlgorithm(),
-            $this->getContentEncryptionAlgorithm(),
-            $this->getCompressionMethod()
+        $this->builder = new JWEBuilder(
+            $this->getAlgorithm(AlgorithmType::KEA),
+            $this->getAlgorithm(AlgorithmType::CEA),
+            $this->getCompressor()
         );
 
-        $jwk = $this->encryptionKey;
+        $this->decrypter = new JWEDecrypter(
+            $this->getAlgorithm(AlgorithmType::KEA),
+            $this->getAlgorithm(AlgorithmType::CEA),
+            $this->getCompressor()
+        );
 
-        $jwe = $jweBuilder
-            ->create()
-            ->withPayload(json_encode($payload))
-            ->withSharedProtectedHeader([
-                'alg' => $this->config->JWEKeyEncryptionAlgorithm,
-                'enc' => $this->config->JWEContentEncryptionAlgorithm,
-                'zip' => $this->config->JWECompressionMethod
-            ])
-            ->addRecipient($jwk->toPublic())
-            ->build();
-
-        $this->setJWT($jwe)->serializeJWT();
-        return $this;
+        $this->loader = new JWELoader(
+            $this->serializer,
+            $this->decrypter,
+            $this->headerCheckers->create([$this->jwtType->value])
+        );
     }
 
     /**
-     * Validate the token
+     * Create the token
+     * Store the token and payload if success
+     *
+     * @throws JWTServiceException
      */
-    public function validateToken(?string $newToken = null): bool
+    public function create(string $payload): string
     {
-        $token = $newToken ?? $this->getToken();
-        if ($token === null) {
-            throw JWTException::forNoToken();
-        }
         try {
-            $jwe = $this->JWEDecrypter($token, $this->getKey());
-            $claimCheckerManager = $this->getClaimsChecker();
-
-            $claims = json_decode($jwe->getPayload(), true);
-            $claimCheckerManager->check($claims);
+            $jwt = $this->builder
+                ->create()
+                ->withPayload($payload)
+                ->withSharedProtectedHeader([
+                    'alg'   => $this->KEA->value,
+                    'enc'   => $this->CEA->value,
+                    'zip'   => $this->compressor->value,
+                ])
+                ->addRecipient($this->getRecipient())
+                ->build();
         } catch (\Throwable $th) {
-            throw new RuntimeException($th->getMessage());
+            throw JWTServiceException::forFailedJWTCreation($th->getMessage());
         }
 
-        return true;
+        $this->jwt = $jwt;
+
+        return $this->serialize($jwt);
     }
 
     /**
-     * Decrypt the token
+     * Load the token
+     * initiate the payload if success
+     *
+     * @throws JWTServiceException
      */
-    public function JWEDecrypter(string $token, JWK $jwk, int $recipient = 0): EncryptionJWE
+    public function load(string $token): JWT
     {
-        $jweLoader = new JWELoader(
-            $this->getSerializeManager(),
-            $this->getDecrypter(),
-            $this->getHeaderChecker()
-        );
+        $recipientIndex = 0;
+        $jwe = $this->serializer->unserialize($token);
+        $success = $this->decrypt($jwe);
 
-        $jwe = $jweLoader->loadAndDecryptWithKey($token, $jwk, $recipient);
-
-        return $jwe;
-    }
-
-    public static function createFromToken(string $token): self
-    {
-        $source = new self();
-        $jwt = $source->JWEDecrypter($token, $source->getKey());
-        return new self([
-            'token'     => $token,
-            'payload'   => json_decode($jwt->getPayload(), true),
-            'jwt'       => $jwt,
-        ]);
-    }
-
-    /**
-     * Get and Set the key
-     */
-    public function getKey(): ?JWK
-    {
-        return $this->encryptionKey ?? null;
-    }
-
-    public function setKey(string $newKey = null): self
-    {
-        $key = $newKey ?? $this->config->encryptionKey ?? null;
-
-        if ($key === null) {
-            try {
-                $key = file_get_contents(config("JWT")->keyFilesPath . config("JWT")->keyFilesName, true);
-            } catch (\Throwable $th) {
-                throw new RuntimeException("The Key doesn't exist");
-            }
+        if (!$success) {
+            throw JWTServiceException::forFailedJWTLoading('JWT Invalid');
         }
 
-        $this->encryptionKey = new JWK([
-            "kty"   => "oct",
-            "k"     => $key,
-        ]);
+        $this->jwt = $this->loader->loadAndDecryptWithKey($token, $this->getRecipient(), $recipientIndex);
 
-        return $this;
+        return $this->jwt;
     }
 
-    /**
-     * Get the User
-     */
-    public function getUser(): ?object
+    public function produced(): bool
     {
-        return $this->user;
-    }
-
-    /**
-     * Set the User
-     * 
-     * @param object|null $newUser
-     */
-    public function setUser($newUser): self
-    {
-        $this->user = $newUser ?? null;
-        return $this;
-    }
-
-    /**
-     * Set and Get the JWT
-     * 
-     * @param JWE $newJWT
-     */
-    public function setJWT($newJWT): self
-    {
-        $this->jwt = $newJWT ?? null;
-        return $this;
+        $jwt = $this->jwt ?? null;
+        return $jwt ? true : false;
     }
 
     public function getJWT()
@@ -232,40 +139,86 @@ class JWE
     }
 
     /**
-     * Set and Get the Token
+     * serialize the jwt
+     * 
+     * @param EncryptionJWE $jwt
      */
-    public function setToken(?string $newToken): self
+    public function serialize(?JWT $jwt = null): string
     {
-        $this->token = $newToken ?? null;
+        $recipientIndex = 0;
+        $jwt ??= $this->jwt;
+        if (!$jwt) {
+            throw JWTServiceException::forFailedJWTSerialization('Tidak ada token yang dapat diserialisasi');
+        }
+        return $this->serializer->serialize($this->jwtType->getCompactType(), $jwt, $recipientIndex);
+    }
+
+    public function decrypt(JWT $jwt): bool
+    {
+        return $this->decrypter->decryptUsingKey($jwt, $this->getRecipient(), 0);
+    }
+
+    public function setAlgorithm(AlgorithmType $type = null, $algo = null): self
+    {
+        if (!empty($algo)) {
+            $this->algo = $algo;
+            $this->algos->add($algo->value, $algo->getInstance());
+            if ($type === AlgorithmType::KEA) {
+                $this->builder->getKeyEncryptionAlgorithmManager()->add($algo->getInstance());
+            } else {
+                $this->builder->getContentEncryptionAlgorithmManager()->add($algo->getInstance());
+            }
+        }
+
         return $this;
     }
 
-    public function getToken()
+    public function getAlgorithm(AlgorithmType $type = null): AlgorithmManager
     {
-        return $this->token ?? null;
+        $this->KEA ??= $this->config->defaultKEA;
+        $this->CEA ??= $this->config->defaultCEA;
+
+        $this->KEAlgorithm ??= $this->algos->create([$this->KEA->value]);
+        $this->CEAlgorithm ??= $this->algos->create([$this->CEA->value]);
+
+        return $type === AlgorithmType::KEA ? $this->KEAlgorithm : $this->CEAlgorithm;
     }
 
-    public function serializeJWT(): self
+    public function setRecipient(JWK|array $recipient = null): self
     {
-        $jwt = $this->getJWT();
-        if ($jwt === null) {
-            throw JWTException::forNoJWTAvailable();
-        }
-
-        if (!($jwt instanceof EncryptionJWE)) {
-            throw JWTException::forInvalidJWT();
-        }
-
-        $token = null;
-
-        try {
-            $serializer = new CompactSerializer();
-            $token = $serializer->serialize($jwt, 0);
-            $this->setToken($token);
-        } catch (\Throwable $th) {
-            throw JWTException::forInvalidJWT();
+        if (!empty($algo)) {
+            if ($recipient instanceof JWT) {
+                $this->recipient = $recipient;
+            } else {
+                $this->recipient = new JWK($recipient);
+            }
         }
 
         return $this;
+    }
+
+    public function getRecipient(): JWK
+    {
+        $this->recipient ??= new JWK($this->config->recipients['main']);
+
+        return $this->recipient;
+    }
+
+    public function setCompressor(?Compressor $compressor = null): self
+    {
+        if (!empty($compressor)) {
+            $this->compressor = $compressor;
+            $this->compressors->add($compressor->value, $compressor->getInstance());
+        }
+
+        return $this;
+    }
+
+    public function getCompressor(): CompressionMethodManager
+    {
+        $this->compressor ??= $this->config->defaultCompressor;
+        $this->compressionMethod ??= $this->compressors->create([$this->compressor->value]);
+
+        return $this->compressionMethod;
     }
 }
