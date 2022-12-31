@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Mrfrost\JWT\Config;
 
-use Mrfrost\JWT\Authentication\JWTAuthenticator;
+use Mrfrost\JWT\Filters\JWTFilter;
 
 class Registrar
 {
@@ -15,7 +15,7 @@ class Registrar
     {
         return [
             'aliases' => [
-                'jwt'   => JWTAuthenticator::class,
+                'jwt'   => JWTFilter::class,
             ],
         ];
     }
