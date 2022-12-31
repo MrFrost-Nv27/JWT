@@ -13,14 +13,14 @@ use Mrfrost\JWT\Config\JWTConfig;
 use Mrfrost\JWT\Encryption\JWE;
 use Mrfrost\JWT\Enums\JWTType;
 use Mrfrost\JWT\Exceptions\InvalidArgumentException;
-use Mrfrost\JWT\JWT;
+use Mrfrost\JWT\JWTInterface;
 use Mrfrost\JWT\Signature\JWS;
 
 class JWTAuthenticator implements AuthenticatorInterface
 {
     public JWTConfig $config;
     public JWTType $tokenType;
-    public JWT $JWTService;
+    public JWTInterface $JWTService;
     /**
      * The persistence engine
      */
@@ -125,7 +125,7 @@ class JWTAuthenticator implements AuthenticatorInterface
             ]);
         }
 
-        $this->loginById($jwt->getPayload()['sub']);
+        $this->loginById(json_decode($jwt->getPayload())->sub);
 
         file_put_contents(WRITEPATH . 'JWTAuth.txt', time() . " (Success) $ipAddress $userAgent" . PHP_EOL, FILE_APPEND);
         return new Result([

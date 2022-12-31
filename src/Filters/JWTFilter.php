@@ -38,8 +38,8 @@ class JWTFilter implements FilterInterface
         $authenticator = auth('jwt')->getAuthenticator();
 
         $result = $authenticator->check([
-            // 'token' => $request->getHeaderLine(setting('Auth.authenticatorHeader')['tokens'] ?? 'Authorization'),
-            'token' => $request->getPost('token'),
+            'token' => $request->getHeaderLine(setting('Auth.authenticatorHeader')['tokens'] ?? 'Authorization'),
+            // 'token' => $request->getPost('token'),
         ]);
 
         if (!$result->isOK() || (!empty($arguments) && $result->extraInfo()->tokenCant($arguments[0]))) {
@@ -47,10 +47,6 @@ class JWTFilter implements FilterInterface
                 'message'   => $result->reason()
             ]);
         }
-
-        // if (setting('Auth.recordActiveDate')) {
-        //     $authenticator->recordActiveDate();
-        // }
     }
 
     /**

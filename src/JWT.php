@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mrfrost\JWT;
 
+use CodeIgniter\Router\RouteCollection;
 use Mrfrost\JWT\Enums\JWTType;
 use Mrfrost\JWT\Exceptions\JWTServiceException;
 
@@ -56,6 +57,32 @@ class JWT
                 ->producer($jwt, $this->type);
         }
         return null;
+    }
+
+    /**
+     * Will set the routes in your application to use
+     * the JWT service.
+     *
+     * Usage (in Config/Routes.php):
+     *      - jwt()->routes($routes);
+     *      - jwt()->routes($routes, ['except' => ['login', 'register']])
+     */
+    public function routes(RouteCollection &$routes, array $config = []): void
+    {
+        $JWTRoutes = config('JWTRoutes')->routes;
+
+        $routes->group('/', ['namespace' => 'Mrfrost\JWT\Controllers'], static function (RouteCollection $routes) use ($JWTRoutes, $config): void {
+            foreach ($JWTRoutes as $name => $row) {
+                if (!isset($config['except']) || !in_array($name, $config['except'], true)) {
+                    foreach ($row as $params) {
+                        $options = isset($params[3])
+                            ? ['as' => $params[3]]
+                            : null;
+                        $routes->{$params[0]}($params[1], $params[2], $options);
+                    }
+                }
+            }
+        });
     }
 
     /**
