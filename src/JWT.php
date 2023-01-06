@@ -15,7 +15,7 @@ class JWT
     /**
      * The JWTService type to use for this request.
      */
-    protected ?JWTType $type = null;
+    public ?JWTType $type = null;
 
     public function __construct(JWTService $jWTService)
     {

@@ -34,7 +34,7 @@ class JWS implements JWTInterface
 
     protected SignatureJWS $jwt;
 
-    protected JWTType $jwtType = JWTType::JWS;
+    public JWTType $jwtType = JWTType::JWS;
 
     public function __construct(
         protected AlgorithmManagerFactory $algos,

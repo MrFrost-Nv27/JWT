@@ -130,7 +130,7 @@ class JWTAuthenticator implements AuthenticatorInterface
         file_put_contents(WRITEPATH . 'JWTAuth.txt', time() . " (Success) $ipAddress $userAgent" . PHP_EOL, FILE_APPEND);
         return new Result([
             'success'   => true,
-            'extraInfo' => $jwt,
+            'extraInfo' => $this->getUser(),
         ]);
     }
 

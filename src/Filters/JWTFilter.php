@@ -39,13 +39,22 @@ class JWTFilter implements FilterInterface
 
         $result = $authenticator->check([
             'token' => $request->getHeaderLine(setting('Auth.authenticatorHeader')['tokens'] ?? 'Authorization'),
-            // 'token' => $request->getPost('token'),
         ]);
 
-        if (!$result->isOK() || (!empty($arguments) && $result->extraInfo()->tokenCant($arguments[0]))) {
+        if (!$result->isOK()) {
             return $response->setStatusCode(400)->setJSON([
                 'message'   => $result->reason()
             ]);
+        }
+
+        if (!empty($arguments)) {
+            foreach ($arguments as $permission) {
+                if (!$result->extraInfo()->can($permission)) {
+                    return $response->setStatusCode(400)->setJSON([
+                        'message'   => 'Anda tidak diperbolehkan untuk mengakses resource ini'
+                    ]);
+                }
+            }
         }
     }
 

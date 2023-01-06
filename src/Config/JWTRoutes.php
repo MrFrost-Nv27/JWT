@@ -15,6 +15,16 @@ class JWTRoutes extends BaseConfig
                 'jwt/login',
                 'JWTController::loginAction',
             ],
+            [
+                'get',
+                'jwt/test',
+                'JWTController::test',
+            ],
+            [
+                'post',
+                'jwt/test',
+                'JWTController::testAttempt',
+            ],
         ],
     ];
 }

@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use CodeIgniter\API\ResponseTrait;
 use CodeIgniter\HTTP\Response;
 use Mrfrost\JWT\Authentication\JWTAuthenticator;
+use Mrfrost\JWT\Filters\JWTFilter;
 
 class JWTController extends BaseController
 {
@@ -44,6 +45,37 @@ class JWTController extends BaseController
         return $this->respond([
             'identity'  => auth()->user()->username,
             'token'     => $jwe,
+        ]);
+    }
+
+    public function test()
+    {
+        return view('Mrfrost\JWT\Views\jwt_test');
+    }
+
+    public function testAttempt()
+    {
+        $permission = [
+            'admin.access'
+        ];
+        $filter = new JWTFilter();
+        $this->request->setHeader(setting('Auth.authenticatorHeader')['tokens'] ?? 'Authorization', $this->request->getPost('token'));
+        $testFilter = $filter->before($this->request, $permission);
+        if ($testFilter) {
+            return $testFilter;
+        }
+
+        // Logic test goes here
+        //
+
+        // jwt profile
+        return $this->respond([
+            'success'  => true,
+            'JWT Type' => jwt()->getJWTService()->jwtType,
+            'token'    => jwt()->getJWTService()->serialize(),
+            'user'     => auth()->getUser(),
+            'group'    => auth()->getUser()->getGroups(),
+            'permisson' => auth()->getUser()->getPermissions(),
         ]);
     }
 

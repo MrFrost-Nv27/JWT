@@ -46,7 +46,7 @@ class JWE implements JWTInterface
 
     public EncryptionJWE $jwt;
 
-    protected JWTType $jwtType = JWTType::JWE;
+    public JWTType $jwtType = JWTType::JWE;
 
     public function __construct(
         protected AlgorithmManagerFactory $algos,
@@ -161,7 +161,6 @@ class JWE implements JWTInterface
     public function setAlgorithm(AlgorithmType $type = null, $algo = null): self
     {
         if (!empty($algo)) {
-            $this->algo = $algo;
             $this->algos->add($algo->value, $algo->getInstance());
             if ($type === AlgorithmType::KEA) {
                 $this->builder->getKeyEncryptionAlgorithmManager()->add($algo->getInstance());
