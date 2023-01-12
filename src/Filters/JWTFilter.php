@@ -43,7 +43,7 @@ class JWTFilter implements FilterInterface
 
         if (!$result->isOK()) {
             return $response->setStatusCode(400)->setJSON([
-                'message'   => $result->reason()
+                'messages'   => ['error' => $result->reason()]
             ]);
         }
 
@@ -51,7 +51,7 @@ class JWTFilter implements FilterInterface
             foreach ($arguments as $permission) {
                 if (!$result->extraInfo()->can($permission)) {
                     return $response->setStatusCode(400)->setJSON([
-                        'message'   => 'Anda tidak diperbolehkan untuk mengakses resource ini'
+                        'messages'   => ['error' => 'Anda tidak diperbolehkan untuk mengakses resource ini']
                     ]);
                 }
             }
