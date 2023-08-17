@@ -80,14 +80,11 @@ class JWTController extends BaseController
             return $this->failValidationErrors($users->errors());
         }
 
-        // To get the complete user object with ID, we need to get from the database
-        $user = $users->findById($users->getInsertID());
-
         try {
             $token = jwt()->getJWTService()
                 ->create(
                     json_encode(
-                        payload($user)
+                        payload($users->getInsertID())
                     )
                 );
         } catch (\Throwable $th) {
