@@ -80,11 +80,12 @@ class JWTController extends BaseController
             return $this->failValidationErrors($users->errors());
         }
 
+        $user = $users->findById($users->getInsertID());
         try {
             $token = jwt()->getJWTService()
                 ->create(
                     json_encode(
-                        payload($users->getInsertID())
+                        payload($user->id)
                     )
                 );
         } catch (\Throwable $th) {
@@ -95,7 +96,7 @@ class JWTController extends BaseController
         }
 
         return $this->respond([
-            'identity' => auth()->user()->fullname,
+            'identity' => $user->fullname,
             'token' => $token,
         ]);
     }
