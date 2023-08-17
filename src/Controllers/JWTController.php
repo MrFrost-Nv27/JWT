@@ -59,7 +59,7 @@ class JWTController extends BaseController
         // Validate here first, since some things,
         // like the password, can only be validated properly here.
         $users = model(setting('Auth.userProvider'));
-        $rules = $this->getValidationRules();
+        $rules = $this->getValidationRules(true);
 
         if (!$this->validate($rules)) {
             return $this->failValidationErrors($this->validator->getErrors());
@@ -91,7 +91,7 @@ class JWTController extends BaseController
                     )
                 );
         } catch (\Throwable $th) {
-            return new Result([
+            return $this->failValidationErrors([
                 'success' => false,
                 'reason' => $th->getMessage(),
             ]);
@@ -140,17 +140,20 @@ class JWTController extends BaseController
      * @return array<string, array<string, array<string>|string>>
      * @phpstan-return array<string, array<string, string|list<string>>>
      */
-    protected function getValidationRules(): array
+    protected function getValidationRules($regist = false): array
     {
+        $authConfig = config('Auth');
+        $tables = $authConfig->tables;
+
         $registrationEmailRules = array_merge(
             config('AuthSession')->emailValidationRules,
-            [sprintf('is_unique[%s.secret]', $this->tables['identities'])]
+            [sprintf('is_unique[%s.secret]', $tables['identities'])]
         );
 
-        return setting('Validation.registration') ?? [
+        return $regist ? setting('Validation.registration') ?? [
             'fullname' => [
-                'label' => 'Auth.username',
-                'rules' => $registrationUsernameRules,
+                'label' => 'Nama Lengkap',
+                'rules' => 'required',
             ],
             'email' => [
                 'label' => 'Auth.email',
@@ -162,6 +165,19 @@ class JWTController extends BaseController
                 'errors' => [
                     'max_byte' => 'Auth.errorPasswordTooLongBytes',
                 ],
+            ],
+        ] : setting('Validation.login') ?? [
+            // 'username' => [
+            //     'label' => 'Auth.username',
+            //     'rules' => config('AuthSession')->usernameValidationRules,
+            // ],
+            'email' => [
+                'label' => 'Auth.email',
+                'rules' => config('AuthSession')->emailValidationRules,
+            ],
+            'password' => [
+                'label' => 'Auth.password',
+                'rules' => 'required',
             ],
         ];
     }
