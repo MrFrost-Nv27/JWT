@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare (strict_types = 1);
 
 namespace Mrfrost\JWT\Config;
 
@@ -14,6 +14,11 @@ class JWTRoutes extends BaseConfig
                 'post',
                 'jwt/login',
                 'JWTController::loginAction',
+            ],
+            [
+                'post',
+                'jwt/register',
+                'JWTController::registerAction',
             ],
             [
                 'get',
