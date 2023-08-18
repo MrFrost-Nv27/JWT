@@ -81,6 +81,7 @@ class JWTController extends BaseController
         }
 
         $user = $users->findById($users->getInsertID());
+        $users->addToDefaultGroup($user);
         try {
             $token = jwt()->getJWTService()
                 ->create(
